@@ -1,5 +1,5 @@
 # openai-turbo-discord
-A discord bot to interact with the openai chat completions api (gpt-3.5-turbo) Retains memory of the conversation up to the set token limit, then removes the oldest message in the conversation. The script also respects the Discord character limit of 2000 characters (no nitro)
+A discord bot to interact with the openai chat completions api (gpt-3.5-turbo)
 
 ## Features
 
