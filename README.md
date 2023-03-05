@@ -2,7 +2,7 @@
 A discord bot to interact with the openai chat completions api (gpt-3.5-turbo)
 
 # Installation
-1.Install Python 3.9 or 3.10 on your system. Later versions should still work, but for compatibility with other machine learning projects I recommend one of these versions. You can download one of them from the official Python website- https://www.python.org/downloads/
+1. Install Python 3.9 or 3.10 on your system. Later versions should still work, but for compatibility with other machine learning projects I recommend one of these versions. You can download one of them from the official Python website- https://www.python.org/downloads/
 
 2. Clone the repository or download and extract the zip file
 
