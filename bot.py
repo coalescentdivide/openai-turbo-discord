@@ -50,7 +50,22 @@ async def on_message(message):
         print(f'{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
         
         async with message.channel.typing():
-            await message.channel.send(content)
+            if len(content) <= 2000:
+                await message.channel.send(content)
+            else:
+                chunks = []
+                while len(content) > 2000:
+                    word_end_index = content.rfind(' ', 0, 2000)
+                    if word_end_index == -1:                        
+                        chunks.append(content[:2000])
+                        content = content[2000:]
+                    else:
+                        chunks.append(content[:word_end_index])
+                        content = content[word_end_index+1:]
+                chunks.append(' ' + content)
+                for chunk in chunks:
+                    await message.channel.send(chunk)
+
     except Exception as e:
         print(type(e), e)
         await message.channel.send("Sorry, there was an error processing your message.")
