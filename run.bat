@@ -10,8 +10,6 @@ if exist "%dir%\venv" (
 
 call "%dir%\venv\Scripts\activate"
 
-echo "Installing requirements"
 pip install -r requirements.txt
 
-echo "Running"
 python bot.py
