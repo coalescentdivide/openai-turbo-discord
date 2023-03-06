@@ -38,14 +38,19 @@ See https://github.com/openai/openai-python/blob/main/chatml.md for information 
     
 @bot.event
 async def on_ready():
-    print(Fore.GREEN + 'Logged in as {0.user}'.format(bot) + Style.RESET_ALL)
-
+    print(f'{Fore.GREEN}Logged in as {bot.user}{Style.RESET_ALL}')
 @bot.event
 async def on_message(message):
     global messages
     if message.author.bot or message.author.id in ignored_ids:
         return
     if str(message.channel.id) not in allowed_channels:
+        return
+    if message.content == "wipe memory":
+        messages.clear()
+        messages = initial_messages.copy()
+        await message.channel.send("Memory wiped!")
+        print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
         return
     async with message.channel.typing():
         try:
