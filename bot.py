@@ -9,7 +9,6 @@ import json
 
 load_dotenv()
 behavior = os.getenv('BEHAVIOR')
-load_dotenv(behavior)
 openai.api_key = os.getenv("OPENAI_KEY")
 allowed_channels = os.getenv("ALLOWED_CHANNELS").split(",")
 ignored_ids = os.getenv("IGNORED_IDS").split(",")
