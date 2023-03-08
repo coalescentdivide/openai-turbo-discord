@@ -4,16 +4,35 @@ import openai
 import os
 from dotenv import load_dotenv
 from colorama import Fore, Back, Style
-import json
 import tiktoken
+import json
 
 load_dotenv()
+behavior = os.getenv('BEHAVIOR')
+load_dotenv(behavior)
 openai.api_key = os.getenv("OPENAI_KEY")
 allowed_channels = os.getenv("ALLOWED_CHANNELS").split(",")
 ignored_ids = os.getenv("IGNORED_IDS").split(",")
 bot = commands.Bot(command_prefix='', intents=discord.Intents.all())
-initial_messages = json.loads(os.getenv("INITIAL_MESSAGES"))
-messages = initial_messages.copy()
+
+with open(behavior, 'r') as file:
+    lines = file.readlines()
+
+conversation = []
+for line in lines:
+    parts = line.strip().split(': ')
+    if len(parts) >= 2:  # check if there are at least two elements in the list
+        role = parts[0]
+        content = parts[1]
+        conversation.append({"role": role, "content": content})
+
+# convert the list of dictionaries to a JSON string
+initial_messages = json.dumps(conversation)
+
+messages = json.loads(initial_messages)
+
+#initial_messages = json.loads(os.getenv("INITIAL_MESSAGES"))
+#messages = initial_messages.copy()
 max_tokens= int(os.getenv("MAX_TOKENS"))
 
 def num_tokens_from_message(messages, model="gpt-3.5-turbo-0301"):
@@ -46,9 +65,13 @@ async def on_message(message):
         return
     if str(message.channel.id) not in allowed_channels:
         return
+    if message.reference is not None:  # ignore messages that are replies
+        return
+    if message.content.startswith('!'):
+        return
     if message.content == "wipe memory":
         messages.clear()
-        messages = initial_messages.copy()
+        messages = json.loads(initial_messages)
         await message.channel.send("Memory wiped!")
         print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
         return
@@ -77,7 +100,6 @@ async def on_message(message):
             print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}')
             print(f'{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}')
             print(f'{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
-            #print(f'Remaining tokens:{remaining_tokens}')
             
             if len(content) <= 2000:
                 await message.channel.send(content)
