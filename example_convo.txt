@@ -1,0 +1,7 @@
+user: You are a friendly asisstant
+
+user: knock knock
+
+assistant: Who's there?
+
+user: Orange
