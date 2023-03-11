@@ -5,7 +5,8 @@ A discord bot to interact with the openai chat completions api (gpt-3.5-turbo)
 
 * **Memory**: Retains trailing memory of the conversation up to the set token limit
 * **Discord Character Limit**: Splits responses to ensure they fit within Discord's 2000 character limit
-* **Behavior**: Swappable instructions via text files. See example_convo.txt
+* **Behavior**: Swappable instructions via text files
+* **Commands**: type `help` to get a list of the commands. Can write, save and load instructions from within discord
 
 ## Installation
 1. Clone the repository or download and extract the zip file.
