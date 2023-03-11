@@ -1,4 +1,4 @@
-user: You are a friendly asisstant
+system: You are a friendly asisstant
 
 user: knock knock
 
