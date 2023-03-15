@@ -54,10 +54,10 @@ def build_convo(lines):
         line = line.strip()
         if not line:
             continue
-        parts = line.split(': ')
+        parts = line.split(':', maxsplit=1)
         if len(parts) >= 2:
             role = parts[0]
-            content = parts[1]
+            content = parts[1].strip()
         else:
             role = "user"
             content = line
@@ -104,11 +104,12 @@ async def on_message(message):
         return
     
     if message.content == "help":
-        embed = discord.Embed(title="Commands", color=0x00ff00)
-        embed.add_field(name="wipe memory", value="Wipes the chatbot's memory and loads the default behavior", inline=False)
-        embed.add_field(name="new behavior", value="Allows the user to manually write a new behavior for the chatbot", inline=False)
-        embed.add_field(name="save behavior", value="Saves the current conversation memory as a new behavior", inline=False)
-        embed.add_field(name="load behavior", value="Loads a saved behavior", inline=False)
+        embed = discord.Embed(title=f"Messages sent in this channel will get a response from {message.guild.me.nick}\n\nReplies to other users are ignored\n\nUse the following commands to modify the behavior", color=0x00ff00)
+        embed.add_field(name="wipe memory", value=f"Wipes the short-term memory and reloads the current behavior", inline=False)
+        embed.add_field(name="new behavior", value=f"Allows the user to set a new behavior", inline=False)
+        embed.add_field(name="save behavior", value=f"Saves the current short-term memory as a behavior template", inline=False)
+        embed.add_field(name="load behavior", value=f"Loads a saved behavior template", inline=False)
+        embed.add_field(name="reset", value=f"Wipes memory and loads the default behavior")
         await message.channel.send(embed=embed)
         return
         
@@ -117,6 +118,13 @@ async def on_message(message):
         messages = load_prompt(filename)
         await message.channel.send("Memory wiped!")
         print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
+        return
+    
+    if message.content == "reset" :
+        messages.clear()
+        messages = load_prompt(filename="default.txt")
+        await message.channel.send("Reset!")
+        print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
         return
     
     if message.content == "new behavior":
@@ -170,8 +178,8 @@ async def on_message(message):
         else:
             await message.channel.send("No behavior files found.")
         return
-    if message.content != filename:
-        
+       
+    if message.content != filename:        
         async with message.channel.typing():
             try:
                 messages.append({"role": "user", "content": message.content})
@@ -185,7 +193,7 @@ async def on_message(message):
                     presence_penalty= float(os.getenv("PRESENCE_PENALTY"))
                     )            
                 content = response['choices'][0]['message']['content']
-                messages.append({"role": "assistant", "content": content})   
+                messages.append({"role": "assistant", "content": content})
                 completion_tokens = response['usage']['completion_tokens']
                 prompt_tokens = response['usage']['prompt_tokens']
                 total_tokens = response['usage']['total_tokens']
@@ -196,8 +204,7 @@ async def on_message(message):
                 print(f'{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')
                 print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}')
                 print(f'{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}')
-                print(f'{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
-                #print(f'{messages}')
+                print(f'{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')                
                 #print(f'Remaining tokens:{remaining_tokens}\nCurrent Memory:\n{messages}')
                 
                 if len(content) <= 2000:
