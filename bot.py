@@ -16,6 +16,9 @@ bot = commands.Bot(command_prefix='', intents=discord.Intents.all())
 temperature = float(os.getenv("TEMPERATURE"))
 frequency_penalty = float(os.getenv("FREQUENCY_PENALTY"))
 presence_penalty = float(os.getenv("PRESENCE_PENALTY"))
+top_p = float(os.getenv("TOP_P"))
+channel_messages = {}
+responses = {}
 
 def list_prompts():
     """Lists prompt filenames in "./prompts" directory with ".txt" extension, removes extension, and returns modified names"""    
@@ -91,25 +94,27 @@ async def chat_response(messages, temperature=float(os.getenv("TEMPERATURE")),
                       frequency_penalty=float(os.getenv("FREQUENCY_PENALTY")), 
                       presence_penalty=float(os.getenv("PRESENCE_PENALTY"))):
     """Returns the response object and prints Token info for gpt-3.5-turbo"""
-    max_tokens= 3500
-    remaining_tokens = max_tokens - num_tokens_from_message(messages)
+    max_tokens= 2000
+    remaining_tokens = 4096 - num_tokens_from_message(messages)
     response = await asyncio.to_thread(
     openai.ChatCompletion.create,
-    model="gpt-3.5-turbo",
-    messages=messages,
-    max_tokens=remaining_tokens + 500,
-    temperature=temperature,
-    frequency_penalty=frequency_penalty,
-    presence_penalty=presence_penalty
+    model= "gpt-3.5-turbo",
+    messages = messages,
+    max_tokens = max_tokens,
+    top_p = top_p,
+    temperature = temperature,
+    frequency_penalty = frequency_penalty,
+    presence_penalty = presence_penalty
 )
     completion_tokens = response['usage']['completion_tokens']
     prompt_tokens = response['usage']['prompt_tokens']
     total_tokens = response['usage']['total_tokens']
     if remaining_tokens < 500:
-        messages = messages[len(messages) // 2:]
+        messages = messages[len(messages) // 4:]
+        remaining_tokens = 4096 - num_tokens_from_message(messages)
         print(f'{Style.DIM}Approaching token limit. Forgetting older messages...')
     print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
-    #print(f'Remaining tokens:{remaining_tokens}')
+    print(f'Remaining tokens:{remaining_tokens}')
     return response
 
 async def discord_chunker(message, content):
@@ -119,33 +124,37 @@ async def discord_chunker(message, content):
     else:
         chunks = []
         while len(content) > 1950:
-            word_end_index = content.rfind(' ', 0, 1950)
-            if word_end_index == -1:                        
-                chunks.append(content[:1950])
-                content = content[1950:]
+            paragraph_end_index = content.rfind('\n\n', 0, 1950)
+            if paragraph_end_index != -1:
+                chunks.append(content[:paragraph_end_index+1] + '\u200b' + '\n')
+                content = content[paragraph_end_index+2:]
             else:
-                chunks.append(content[:word_end_index])
-                content = content[word_end_index+1:]
-        chunks.append(' ' + content)
+                sentence_end_index = content.rfind('. ', 0, 1950)
+                if sentence_end_index != -1:
+                    chunks.append(content[:sentence_end_index+1])
+                    content = content[sentence_end_index+2:]
+                else:
+                    word_end_index = content.rfind(' ', 0, 1950)
+                    chunks.append(content[:word_end_index])
+                    content = content[word_end_index+1:]
+        chunks.append(content)
         for chunk in chunks:
             await message.channel.send(chunk)
     
 @bot.event
 async def on_ready():
     print(f'{Fore.GREEN}Logged in as {bot.user}{Style.RESET_ALL}')
-    filename = os.getenv('DEFAULT_PROMPT')  # set the default behavior file
-    global messages
-    messages = load_prompt(filename)
+
 
 @bot.event
 async def on_message(message):
     await asyncio.sleep(0.1)
-    global messages
     filename = os.getenv('DEFAULT_PROMPT')
 
     if message.author.bot or message.author.id in ignored_ids:
         return
-    if str(message.channel.id) not in allowed_channels and not bot.user in message.mentions:
+    bot_mentioned_in_unallowed_channel = str(message.channel.id) not in allowed_channels and bot.user in message.mentions
+    if not bot_mentioned_in_unallowed_channel and str(message.channel.id) not in allowed_channels:
         return
     if message.content.startswith(f'{bot.user.mention} '):
         message_content = message.content.replace(f'{bot.user.mention} ', '')
@@ -155,9 +164,8 @@ async def on_message(message):
         return
     if message.content.startswith('!'):
         return
-    
-    if message.content == "help":
-        embed = discord.Embed(title=f"Send a message in this channel to get a response from {message.guild.me.nick}\n\nReplies to other users are ignored\n\nUse the following commands to modify the behavior", color=0x00ff00)
+    if message.content.lower() == "help":
+        embed = discord.Embed(title=f"Send a message in this channel to get a response from {message.guild.me.nick}\n\nAlternatively, you can mention {message.guild.me.nick} outside of this channel for a response\n\nReplies to other users are ignored\n\nUse the following commands to modify the behavior", color=0x00ff00)
         embed.add_field(name="wipe memory", value=f"Wipes the short-term memory and reloads the current behavior", inline=False)
         embed.add_field(name="new behavior", value=f"Allows the user to set a new behavior (experimental)", inline=False)
         embed.add_field(name="save behavior", value=f"Saves the current short-term memory as a behavior template", inline=False)
@@ -166,21 +174,19 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         return
         
-    if message.content == "wipe memory":
-        messages.clear()
-        messages = load_prompt(filename)
+    if message.content.lower() == "wipe memory":
+        channel_messages[message.channel.id] = load_prompt(filename)
         await message.channel.send("Memory wiped!")
         print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
         return
-    
-    if message.content == "reset" :
-        messages.clear()
-        messages = load_prompt(filename="default.txt")
+
+    if message.content.lower() == "reset":
+        channel_messages[message.channel.id] = load_prompt(filename)
         await message.channel.send("Reset!")
         print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
         return
     
-    if message.content == "new behavior":
+    if message.content.lower() == "new behavior":
         messages.clear()
         await message.channel.send("Write the base conversation:")
         def check(msg):
@@ -195,7 +201,7 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         return
     
-    if message.content == "save behavior":
+    if message.content.lower() == "save behavior":
         await message.channel.send("Name your new behavior:")
         def check(msg):
             return msg.author == message.author and msg.channel == message.channel
@@ -229,27 +235,36 @@ async def on_message(message):
             if filename not in behavior_files:
                 await message.channel.send(f"File not found: {filename}")
                 return
-
         conversation = load_prompt(filename)
         os.environ["DEFAULT_PROMPT"] = filename
-        messages.clear()
-        messages = load_prompt(filename)                
+        channel_messages[message.channel.id] = load_prompt(filename)
         convo_str = de_json(conversation)
         embed = discord.Embed(title=f"Behavior loaded: {filename}", description=convo_str, color=0x00ff00)
-        print(f'{Fore.RED}Behavior Loaded:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{de_json(messages)}{Style.RESET_ALL}')
+        print(f'{Fore.RED}Behavior Loaded:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{de_json(channel_messages[message.channel.id])}{Style.RESET_ALL}')
         await message.channel.send(embed=embed)
         return
- 
-    if message.content != filename:     
+     
+    if message.content != filename:   
+        messages = channel_messages.get(message.channel.id)
+        if messages is None:
+            messages = load_prompt(filename="default.txt")
+            channel_messages[message.channel.id] = messages
+
         async with message.channel.typing():
             try:
                 messages.append({"role": "user", "content": message_content})
-                response = await chat_response(messages)           
+                response = await chat_response(messages)
                 content = response['choices'][0]['message']['content']
                 messages.append({"role": "assistant", "content": content})
-                print(f'{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}')
+                print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')
                 #print(f'Current Memory:{messages}')
-                await discord_chunker(message, content)
+                responses[message.id] = content
+                if message.id in responses:
+                    response_content = responses[message.id]
+                    await discord_chunker(message, response_content)
+                if bot_mentioned_in_unallowed_channel:
+                    del channel_messages[message.channel.id]
+
             except Exception as e:
                 print(type(e), e)
                 await message.channel.send("Sorry, there was an error processing your message.")
