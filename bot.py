@@ -13,7 +13,6 @@ openai.api_key = os.getenv("OPENAI_KEY")
 allowed_channels = os.getenv("ALLOWED_CHANNELS").split(",")
 ignored_ids = os.getenv("IGNORED_IDS").split(",")
 bot = commands.Bot(command_prefix='', intents=discord.Intents.all())
-max_tokens= 3500
 temperature = float(os.getenv("TEMPERATURE"))
 frequency_penalty = float(os.getenv("FREQUENCY_PENALTY"))
 presence_penalty = float(os.getenv("PRESENCE_PENALTY"))
@@ -115,7 +114,7 @@ async def chat_response(messages, temperature=float(os.getenv("TEMPERATURE")),
 
 async def discord_chunker(message, content):
     """Splits text into multiple messages if length is over discord character limit"""
-    if len(content) <= 2000:
+    if len(content) <= 1950:
         await message.channel.send(content)
     else:
         chunks = []
