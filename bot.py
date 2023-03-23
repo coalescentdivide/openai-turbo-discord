@@ -95,13 +95,16 @@ async def chat_response(messages, temperature=float(os.getenv("TEMPERATURE")),
                       frequency_penalty=float(os.getenv("FREQUENCY_PENALTY")), 
                       presence_penalty=float(os.getenv("PRESENCE_PENALTY"))):
     """Returns the response object and prints Token info for gpt-3.5-turbo"""
-    max_tokens= 2000
-    remaining_tokens = 4096 - num_tokens_from_message(messages)
+    remaining_tokens = 4000 - num_tokens_from_message(messages)
+    if remaining_tokens < 500:
+        messages = messages[len(messages) // 2:]
+        print(f'{Style.DIM}Approaching token limit. Forgetting older messages...')
+        remaining_tokens = 4000 - num_tokens_from_message(messages) 
     response = await asyncio.to_thread(
     openai.ChatCompletion.create,
     model= "gpt-3.5-turbo",
     messages = messages,
-    max_tokens = max_tokens,
+    max_tokens = remaining_tokens,
     top_p = top_p,
     temperature = temperature,
     frequency_penalty = frequency_penalty,
@@ -110,10 +113,6 @@ async def chat_response(messages, temperature=float(os.getenv("TEMPERATURE")),
     completion_tokens = response['usage']['completion_tokens']
     prompt_tokens = response['usage']['prompt_tokens']
     total_tokens = response['usage']['total_tokens']
-    if remaining_tokens < 500:
-        messages = messages[len(messages) // 4:]
-        remaining_tokens = 4096 - num_tokens_from_message(messages)
-        print(f'{Style.DIM}Approaching token limit. Forgetting older messages...')
     print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
     print(f'Remaining tokens:{remaining_tokens}')
     return response
