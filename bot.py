@@ -19,6 +19,7 @@ presence_penalty = float(os.getenv("PRESENCE_PENALTY"))
 top_p = float(os.getenv("TOP_P"))
 channel_messages = {}
 responses = {}
+command_mode_flag = {}
 
 def list_prompts():
     """Lists prompt filenames in "./prompts" directory with ".txt" extension, removes extension, and returns modified names"""    
@@ -164,6 +165,7 @@ async def on_message(message):
         return
     if message.content.startswith('!'):
         return
+    
     if message.content.lower() == "help":
         embed = discord.Embed(title=f"Send a message in this channel to get a response from {message.guild.me.nick}\n\nAlternatively, you can mention {message.guild.me.nick} outside of this channel for a response\n\nReplies to other users are ignored\n\nUse the following commands to modify the behavior", color=0x00ff00)
         embed.add_field(name="wipe memory", value=f"Wipes the short-term memory and reloads the current behavior", inline=False)
@@ -187,12 +189,13 @@ async def on_message(message):
         return
     
     if message.content.lower() == "new behavior":
-        messages.clear()
+        command_mode_flag[message.channel.id] = True
+        channel_messages[message.channel.id] = []
         await message.channel.send("Write the base conversation:")
         def check(msg):
             return msg.author == message.author and msg.channel == message.channel
         msg = await bot.wait_for("message", check=check)
-        messages = json.loads(build_convo(msg.content.strip().split('\n')))
+        channel_messages[message.channel.id] = json.loads(build_convo(msg.content.strip().split('\n')))
         async for m in message.channel.history(limit=1):
             if m.author == message.author and m.content:
                 last_user_message = m.content
@@ -200,13 +203,15 @@ async def on_message(message):
         embed = discord.Embed(title="New behavior Set!", description=last_user_message, color=0x00ff00)
         await message.channel.send(embed=embed)
         return
-    
+
     if message.content.lower() == "save behavior":
+        command_mode_flag[message.channel.id] = True
         await message.channel.send("Name your new behavior:")
         def check(msg):
             return msg.author == message.author and msg.channel == message.channel
         msg = await bot.wait_for("message", check=check)
         filename = "prompts/" + msg.content.strip() + ".txt"
+        messages = channel_messages[message.channel.id]
         convo_str = de_json(messages)
         with open(filename, "w") as file:
             file.write(convo_str)
@@ -225,6 +230,7 @@ async def on_message(message):
                 await message.channel.send(f"File not found: {filename}")
                 return
         else:
+            command_mode_flag[message.channel.id] = True
             behavior_files_str = "\n".join(behavior_files)
             embed = discord.Embed(title="Which behavior to load?", description=behavior_files_str)
             await message.channel.send(embed=embed)
@@ -244,29 +250,36 @@ async def on_message(message):
         await message.channel.send(embed=embed)
         return
      
-    if message.content != filename:   
-        messages = channel_messages.get(message.channel.id)
-        if messages is None:
-            messages = load_prompt(filename="default.txt")
-            channel_messages[message.channel.id] = messages
-
-        async with message.channel.typing():
-            try:
-                messages.append({"role": "user", "content": message_content})
-                response = await chat_response(messages)
-                content = response['choices'][0]['message']['content']
-                messages.append({"role": "assistant", "content": content})
-                print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')
-                #print(f'Current Memory:{messages}')
-                responses[message.id] = content
-                if message.id in responses:
-                    response_content = responses[message.id]
-                    await discord_chunker(message, response_content)
-                if bot_mentioned_in_unallowed_channel:
-                    del channel_messages[message.channel.id]
-
-            except Exception as e:
-                print(type(e), e)
-                await message.channel.send("Sorry, there was an error processing your message.")
+    if bot_mentioned_in_unallowed_channel:
+        user_channel_key = message.author.id
+    else:
+        user_channel_key = message.channel.id
+    messages = channel_messages.get(user_channel_key)
+    if messages is None:
+        messages = load_prompt(filename="default.txt")
+        channel_messages[user_channel_key] = messages
+    if command_mode_flag.get(message.channel.id):
+        command_mode_flag[message.channel.id] = False
+        return
+    async with message.channel.typing():
+        try:
+            messages.append({"role": "user", "content": message_content})
+            response = await chat_response(messages)
+            content = response['choices'][0]['message']['content']
+            messages.append({"role": "assistant", "content": content})
+            print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')
+            print(f'Current Memory:{messages}')
+            responses[message.id] = content
+            if message.id in responses:
+                response_content = responses[message.id]
+                await discord_chunker(message, response_content)
+            if bot_mentioned_in_unallowed_channel:
+                await asyncio.sleep(300)
+                if user_channel_key in channel_messages:
+                    del channel_messages[user_channel_key]
+                    print(f'{Fore.RED}Forgetting side convo with {message.author}{Style.RESET_ALL}')               
+        except Exception as e:
+            print(type(e), e)
+            await message.channel.send("Sorry, there was an error processing your message.")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
