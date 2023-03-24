@@ -1,7 +1,7 @@
 # openai-turbo-discord
 A discord bot to interact with the openai chat completions api (gpt-3.5-turbo, gpt4)
 
-This guide assumes you have a working python environment
+This guide assumes you have python installed on your system (3.9 or 3.10 recommended)
 
 # Features
 
