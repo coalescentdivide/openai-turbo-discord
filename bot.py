@@ -186,7 +186,7 @@ async def on_message(message):
         return
 
     elif message.content.lower() == "reset":
-        channel_messages[message.channel.id] = load_prompt(filename)
+        channel_messages[message.channel.id] = load_prompt(filename=os.getenv("DEFAULT_PROMPT"))
         await message.channel.send("Reset!")
         print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
         return
