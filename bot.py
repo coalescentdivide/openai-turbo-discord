@@ -143,11 +143,10 @@ async def discord_chunker(message, content):
         chunks.append(content)
         for chunk in chunks:
             await message.channel.send(chunk)
-    
+
 @bot.event
 async def on_ready():
     print(f'{Fore.GREEN}Logged in as {bot.user}{Style.RESET_ALL}')
-
 
 @bot.event
 async def on_message(message):
@@ -185,8 +184,9 @@ async def on_message(message):
         print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
         return
 
-    elif message.content.lower() == "reset":
-        channel_messages[message.channel.id] = load_prompt(filename=os.getenv("DEFAULT_PROMPT"))
+    elif message.content.lower() == "reset":        
+        os.environ["DEFAULT_PROMPT"] = filename
+        channel_messages[message.channel.id] = load_prompt(filename)
         await message.channel.send("Reset!")
         print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
         return
@@ -236,15 +236,12 @@ async def on_message(message):
             behavior_files_str = "\n".join(behavior_files)
             embed = discord.Embed(title="Which behavior to load?", description=behavior_files_str)
             await message.channel.send(embed=embed)
-            def check(msg):
-                return msg.author == message.author and msg.channel == message.channel
             msg = await bot.wait_for("message", check=check)
             filename = msg.content.strip()
             if filename not in behavior_files:
                 await message.channel.send(f"File not found: {filename}")
                 return
         conversation = load_prompt(filename)
-        os.environ["DEFAULT_PROMPT"] = filename
         channel_messages[message.channel.id] = conversation
         convo_str = de_json(conversation)
         embed = discord.Embed(title=f"Behavior loaded: {filename}", description="", color=0x00ff00)
