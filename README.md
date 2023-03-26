@@ -1,8 +1,6 @@
 # openai-turbo-discord
 A discord bot to interact with the openai chat completions api (gpt-3.5-turbo, gpt4)
 
-This guide assumes you have python installed on your system (3.9 or 3.10 recommended)
-
 # Features
 
 * **Memory**: Retains trailing memory of the conversation up to the set token limit. Each allowed channel now has its own memory!
@@ -20,7 +18,8 @@ This guide assumes you have python installed on your system (3.9 or 3.10 recomme
 5. Enable "Message Content Intent" under "Privileged Gateway Intents"
 6. Go to the OAuth2 tab and select URL generator. Under Scopes check `bot`, then in the permissions check `Send Messages` and `Embed Links`. Use the generated URL to invite the bot to your server.
 
-## Installation
+## Installation 
+note: This guide assumes you have python installed on your system (3.9 or 3.10 recommended)
 1. Clone the repository or download and extract the zip file.
 2. Copy the .env.example file and rename it to .env.
 3. Edit .env file and add your Discord bot token, OpenAI API key, and at least one channel for it to work in.
