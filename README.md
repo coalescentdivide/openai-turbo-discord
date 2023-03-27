@@ -1,26 +1,30 @@
 # openai-turbo-discord
-A discord bot to interact with the openai chat completions api (gpt-3.5-turbo, gpt4)
+A discord bot to interact with the openai chat completions api (designed for gpt-3.5-turbo - will work with gpt4 but will be very expensive!)
 
-# Features
+* Retains trailing memory of the conversation with a dynamic self adjusting token limit.
+* Can be in multiple channels with their own memories and behaviors.
+* Can speak to the bot outside an allowed channel with a mention. When done this way, gets a unique memory tied to the user that mentioned. Forgets a mention convo after 10 minutes.
+* Type `help` to get a list of available commands, including the ability to write, save, and load instructions directly within Discord!
+* The behavior commands can be set to usable by everyone, or by authorized users only.
 
-* **Memory**: Retains trailing memory of the conversation up to the set token limit. Each allowed channel now has its own memory!
-* **Discord Character Limit**: Splits responses to ensure they fit within Discord's 2000 character limit
-* **Behavior**: Swappable instructions via text files
-* **Commands**: type `help` to get a list of the commands. Can write, save and load instructions from within discord!
+## Setup Guide (Windows)
 
-# Setup
+### 1. Clone the repository or download and extract the zip file.
 
-## OpenAI and Discord bot setup
-1. Create or login to your openai account and generate an API key `https://platform.openai.com/account/api-keys` (you will need this key for step 3 in Installation!)  
-2. Create your own Discord bot at `https://discord.com/developers/applications`
-3. Go to the Bot tab and click "Add Bot"
-4. Click "Reset Token" and copy your Discord bot token (you will need this token for step 3 in Installation!) and Disable "Public Bot"
-5. Enable "Message Content Intent" under "Privileged Gateway Intents"
-6. Go to the OAuth2 tab and select URL generator. Under Scopes check `bot`, then in the permissions check `Send Messages` and `Embed Links`. Use the generated URL to invite the bot to your server.
+### 2. Copy the .env.example file and rename it to .env.
 
-## Installation 
-note: This guide assumes you have python installed on your system (3.9 or 3.10 recommended)
-1. Clone the repository or download and extract the zip file.
-2. Copy the .env.example file and rename it to .env.
-3. Edit .env file and add your Discord bot token, OpenAI API key, and at least one channel for it to work in.
-4. Open a terminal window and navigate to the folder containing the downloaded files, then type run.bat. To shut down press `Ctrl + c`
+### 3. Obtain your Discord Bot token
+###### 1. Create your bot at https://discord.com/developers/applications
+###### 2. Go to the Bot tab and click "Add Bot" and give it a name.
+###### 3. Click "Reset Token" to get your Discord Bot Token for the .env file.
+###### 4. Disable "Public Bot".
+###### 5. Enable "Message Content Intent" under "Privileged Gateway Intents".
+###### 6. Go to the OAuth2 tab and select URL generator. Under Scopes check `bot`, then in the permissions check `Send Messages` and `Embed Links`. Use the generated URL to invite the bot to your server. (Designed to run on a single server)
+
+### 4. Create or login to your OpenAI account and generate an API key at https://beta.openai.com/account/api-keys
+
+### 5. Edit .env file and add your Discord bot token, OpenAI API key, and at least one channel for it to work in. 
+###### You can find the IDs for Channels and Users by turning on Developer Mode in Discord (Settings > Appearance > Advanced) and right-clicking on the channel and selecting 'copy ID'.
+
+### 6. Open a terminal window in the folder containing the downloaded files, and type `run.bat`. (You may have to type `./run.bat` due to powershell permissions). To shut down press `Ctrl + c`.
+
