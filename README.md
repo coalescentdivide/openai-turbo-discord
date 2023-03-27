@@ -3,7 +3,7 @@ A discord bot to interact with the openai chat completions api (designed for gpt
 
 * Retains trailing memory of the conversation with a dynamic self adjusting token limit.
 * Can be in multiple channels with their own memories and behaviors.
-* Can speak to the bot outside an allowed channel with a mention. When done this way, gets a unique memory tied to the user that mentioned. Forgets a mention convo after 10 minutes.
+* Can speak to the bot outside an allowed channel with a mention. When done this way, gets a unique memory tied to the user that mentioned. Forgets a mention convo after 5 minutes.
 * Type `help` to get a list of available commands, including the ability to write, save, and load instructions directly within Discord!
 * The behavior commands can be set to usable by everyone, or by authorized users only.
 
