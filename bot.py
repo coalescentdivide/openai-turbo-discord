@@ -106,10 +106,10 @@ See https://github.com/openai/openai-python/blob/main/chatml.md for information 
 async def chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p):
     """Returns the response object and prints Token info for gpt-3.5-turbo"""
     remaining_tokens = 4000 - num_tokens_from_message(messages)
-    if remaining_tokens < 500:
+    if remaining_tokens < 1000:
         messages = messages[len(messages) // 2:]
-        print(f'{Style.DIM}Approaching token limit. Forgetting older messages...')
-        remaining_tokens = 4000 - num_tokens_from_message(messages) 
+        print(f'{Style.DIM}Approaching token limit. Forgetting older messages...{Style.RESET_ALL}')
+        remaining_tokens = 4000 - num_tokens_from_message(messages)
     response = await asyncio.to_thread(
     openai.ChatCompletion.create,
     model= "gpt-3.5-turbo",
