@@ -229,13 +229,13 @@ async def on_message(message):
         command_mode_flag[message.channel.id] = True
         await message.channel.send("Name your behavior:")      
         msg = await bot.wait_for("message", check=check)
-        filename = msg.content.strip()
+        filename = "prompts/" + msg.content.strip() + ".txt"
         messages = channel_messages[message.channel.id]
         convo_str = de_json(messages)
         with open(filename, "w") as file:
             file.write(convo_str)
             print(f'{Fore.RED}Behavior Saved:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{convo_str}{Style.RESET_ALL}')
-            await message.channel.send(f"Behavior saved as `{filename}`")
+            await message.channel.send(f"Behavior saved as `{os.path.splitext(os.path.basename(filename))[0]}`")
             return
 
     elif message.content.lower().startswith("load behavior"):
