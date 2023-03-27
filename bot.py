@@ -163,7 +163,7 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     global filename
-    
+
     await asyncio.sleep(0.1)
     if message.author.bot or message.author.id in ignored_ids:
         return
@@ -197,7 +197,7 @@ async def on_message(message):
         if not allowed_command(message.author.id):
             await message.channel.send("You are not allowed to use this command.")
             return      
-        os.environ["DEFAULT_PROMPT"] = filename
+        filename = os.getenv('DEFAULT_PROMPT')
         channel_messages[message.channel.id] = load_prompt(filename)
         await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(filename))[0]}`!")
         print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
