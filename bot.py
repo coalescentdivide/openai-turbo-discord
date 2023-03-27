@@ -13,10 +13,25 @@ openai.api_key = os.getenv("OPENAI_KEY")
 allowed_channels = os.getenv("ALLOWED_CHANNELS").split(",")
 ignored_ids = os.getenv("IGNORED_IDS").split(",")
 bot = commands.Bot(command_prefix='', intents=discord.Intents.all())
+allow_commands = os.getenv("ALLOW_COMMANDS").lower() == "true"
+admin_id = os.getenv("ADMIN_IDS").split(",")
+filename = os.getenv('DEFAULT_PROMPT')
+temperature = float(os.getenv("TEMPERATURE"))
+frequency_penalty = float(os.getenv("FREQUENCY_PENALTY"))
+presence_penalty = float(os.getenv("PRESENCE_PENALTY"))
+top_p = float(os.getenv("TOP_P"))
 
 channel_messages = {}
 responses = {}
 command_mode_flag = {}
+
+def allowed_command(user_id):
+    if str(user_id) in admin_id:
+        return True
+    elif allow_commands:
+        return True
+    else:
+        return False
 
 def list_prompts():
     """Lists prompt filenames in "./prompts" directory with ".txt" extension, removes extension, and returns modified names"""    
@@ -88,10 +103,7 @@ def num_tokens_from_message(messages, model="gpt-3.5-turbo-0301"):
         raise NotImplementedError(f"""num_tokens_from_messages() is not presently implemented for model {model}.
 See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
     
-async def chat_response(messages, temperature=float(os.getenv("TEMPERATURE")), 
-                      frequency_penalty=float(os.getenv("FREQUENCY_PENALTY")), 
-                      presence_penalty=float(os.getenv("PRESENCE_PENALTY")),
-                      top_p=float(os.getenv("TOP_P"))):
+async def chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p):
     """Returns the response object and prints Token info for gpt-3.5-turbo"""
     remaining_tokens = 4000 - num_tokens_from_message(messages)
     if remaining_tokens < 500:
@@ -150,18 +162,15 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
+    global filename
+    
     await asyncio.sleep(0.1)
-    filename = os.getenv('DEFAULT_PROMPT')
-
     if message.author.bot or message.author.id in ignored_ids:
         return
-
     bot_mentioned_in_unallowed_channel = str(message.channel.id) not in allowed_channels and bot.user in message.mentions
     if not bot_mentioned_in_unallowed_channel and str(message.channel.id) not in allowed_channels:
         return
-
     message_content = message.content.replace(f'{bot.user.mention} ', '') if message.content.startswith(f'{bot.user.mention} ') else message.content
-
     if message.reference is not None or message.content.startswith('!'):
         return
 
@@ -180,18 +189,24 @@ async def on_message(message):
 
     elif message.content.lower() == "wipe memory":
         channel_messages[message.channel.id] = load_prompt(filename)
-        await message.channel.send("Memory wiped!")
+        await message.channel.send(f"Memory wiped! Current Behavior is `{os.path.splitext(os.path.basename(filename))[0]}`")
         print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
         return
 
-    elif message.content.lower() == "reset":        
+    elif message.content.lower() == "reset":
+        if not allowed_command(message.author.id):
+            await message.channel.send("You are not allowed to use this command.")
+            return      
         os.environ["DEFAULT_PROMPT"] = filename
         channel_messages[message.channel.id] = load_prompt(filename)
-        await message.channel.send("Reset!")
+        await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(filename))[0]}`!")
         print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
         return
 
     elif message.content.lower() == "new behavior":
+        if not allowed_command(message.author.id):
+            await message.channel.send("You are not allowed to use this command.")
+            return 
         command_mode_flag[message.channel.id] = True
         channel_messages[message.channel.id] = []
         embed = discord.Embed(title=f"Write the new behavior", description=(f'Provide a new behavior. Can be a single prompt, or you can provide an example conversation in the following format:\n\nsystem: a system message\nuser: user message 1\nassistant: example response 1\nuser: user message 2\nassistant: example response 2\n\n'), color=0x00ff00)        
@@ -208,19 +223,25 @@ async def on_message(message):
         return
 
     elif message.content.lower() == "save behavior":
+        if not allowed_command(message.author.id):
+            await message.channel.send("You are not allowed to use this command.")
+            return 
         command_mode_flag[message.channel.id] = True
         await message.channel.send("Name your behavior:")      
         msg = await bot.wait_for("message", check=check)
-        filename = "prompts/" + msg.content.strip() + ".txt"
+        filename = msg.content.strip()
         messages = channel_messages[message.channel.id]
         convo_str = de_json(messages)
         with open(filename, "w") as file:
             file.write(convo_str)
             print(f'{Fore.RED}Behavior Saved:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{convo_str}{Style.RESET_ALL}')
-            await message.channel.send(f"Behavior saved as {filename}")
+            await message.channel.send(f"Behavior saved as `{filename}`")
             return
 
     elif message.content.lower().startswith("load behavior"):
+        if not allowed_command(message.author.id):
+            await message.channel.send("You are not allowed to use this command.")
+            return 
         behavior_files = list_prompts()
         if not behavior_files:
             await message.channel.send("No behavior files found.")
@@ -268,7 +289,7 @@ async def on_message(message):
         async with message.channel.typing():
             try:
                 messages.append({"role": "user", "content": message_content})
-                response = await chat_response(messages)
+                response = await chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p)
                 content = response['choices'][0]['message']['content']
                 messages.append({"role": "assistant", "content": content})
                 print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')
