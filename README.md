@@ -8,7 +8,7 @@ A discord bot to interact with the openai chat completions api (designed for gpt
 * The behavior commands can be set to usable by everyone, or by authorized users only.
 
 ## Setup Guide (Windows)
-
+###### This guide assumes you have python installed on your system (3.9 or 3.10 is recommended)
 ### 1. Clone the repository or download and extract the zip file.
 
 ### 2. Copy the .env.example file and rename it to .env.
