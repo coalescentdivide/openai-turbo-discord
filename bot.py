@@ -258,7 +258,7 @@ async def on_message(message):
             embed = discord.Embed(title="Which behavior to load?", description=behavior_files_str)
             await message.channel.send(embed=embed)
             msg = await bot.wait_for("message", check=check)
-            filename = msg.content.strip()
+            filename = msg.content.strip().lower()
             if filename not in behavior_files:
                 await message.channel.send(f"File not found: {filename}")
                 return
