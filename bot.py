@@ -106,10 +106,11 @@ See https://github.com/openai/openai-python/blob/main/chatml.md for information 
 async def chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p):
     """Returns the response object and prints Token info for gpt-3.5-turbo"""
     remaining_tokens = 4000 - num_tokens_from_message(messages)
-    if remaining_tokens < 1000:
+    if remaining_tokens < 500:
         messages = messages[len(messages) // 2:]
         print(f'{Style.DIM}Approaching token limit. Forgetting older messages...{Style.RESET_ALL}')
         remaining_tokens = 4000 - num_tokens_from_message(messages)
+        print(f'{Style.DIM}{Fore.WHITE}Remaining tokens after purge:{remaining_tokens}{Style.RESET_ALL}')
     response = await asyncio.to_thread(
     openai.ChatCompletion.create,
     model= "gpt-3.5-turbo",
@@ -156,6 +157,7 @@ async def discord_chunker(message, content):
         for chunk in chunks:
             await message.channel.send(chunk)
 
+
 @bot.event
 async def on_ready():
     print(f'{Fore.GREEN}Logged in as {bot.user}{Style.RESET_ALL}')
@@ -173,6 +175,8 @@ async def on_message(message):
     message_content = message.content.replace(f'{bot.user.mention} ', '') if message.content.startswith(f'{bot.user.mention} ') else message.content
     if message.reference is not None or message.content.startswith('!'):
         return
+    
+
 
     def check(msg):
         return msg.author == message.author and msg.channel == message.channel
@@ -188,7 +192,7 @@ async def on_message(message):
         return
 
     elif message.content.lower() == "wipe memory":
-        channel_messages[message.channel.id] = load_prompt(filename)
+        os.environ["DEFAULT_PROMPT"] = filename
         await message.channel.send(f"Memory wiped! Current Behavior is `{os.path.splitext(os.path.basename(filename))[0]}`")
         print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
         return
@@ -263,6 +267,7 @@ async def on_message(message):
                 await message.channel.send(f"File not found: {filename}")
                 return
         conversation = load_prompt(filename)
+        os.environ["DEFAULT_PROMPT"] = filename
         channel_messages[message.channel.id] = conversation
         convo_str = de_json(conversation)
         embed = discord.Embed(title=f"Behavior loaded: {filename}", description="", color=0x00ff00)
