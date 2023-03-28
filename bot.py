@@ -15,7 +15,7 @@ ignored_ids = os.getenv("IGNORED_IDS").split(",")
 bot = commands.Bot(command_prefix='', intents=discord.Intents.all())
 allow_commands = os.getenv("ALLOW_COMMANDS").lower() == "true"
 admin_id = os.getenv("ADMIN_IDS").split(",")
-filename = os.getenv('DEFAULT_PROMPT')
+current_behavior_filename = os.getenv('DEFAULT_PROMPT')
 temperature = float(os.getenv("TEMPERATURE"))
 frequency_penalty = float(os.getenv("FREQUENCY_PENALTY"))
 presence_penalty = float(os.getenv("PRESENCE_PENALTY"))
@@ -157,14 +157,13 @@ async def discord_chunker(message, content):
         for chunk in chunks:
             await message.channel.send(chunk)
 
-
 @bot.event
 async def on_ready():
     print(f'{Fore.GREEN}Logged in as {bot.user}{Style.RESET_ALL}')
 
 @bot.event
 async def on_message(message):
-    global filename
+    global current_behavior_filename
 
     await asyncio.sleep(0.1)
     if message.author.bot or message.author.id in ignored_ids:
@@ -176,8 +175,6 @@ async def on_message(message):
     if message.reference is not None or message.content.startswith('!'):
         return
     
-
-
     def check(msg):
         return msg.author == message.author and msg.channel == message.channel
 
@@ -192,8 +189,9 @@ async def on_message(message):
         return
 
     elif message.content.lower() == "wipe memory":
-        os.environ["DEFAULT_PROMPT"] = filename
-        await message.channel.send(f"Memory wiped! Current Behavior is `{os.path.splitext(os.path.basename(filename))[0]}`")
+        channel_messages[message.channel.id].clear()
+        channel_messages[message.channel.id] = load_prompt(current_behavior_filename)
+        await message.channel.send(f"Memory wiped! Current Behavior is `{os.path.splitext(os.path.basename(current_behavior_filename))[0]}`")
         print(f'{Fore.RED}Memory Wiped{Style.RESET_ALL}')
         return
 
@@ -201,9 +199,10 @@ async def on_message(message):
         if not allowed_command(message.author.id):
             await message.channel.send("You are not allowed to use this command.")
             return      
-        filename = os.getenv('DEFAULT_PROMPT')
-        channel_messages[message.channel.id] = load_prompt(filename)
-        await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(filename))[0]}`!")
+        channel_messages[message.channel.id].clear()
+        channel_messages[message.channel.id] = load_prompt(filename=os.getenv('DEFAULT_PROMPT'))
+        current_behavior_filename = os.getenv('DEFAULT_PROMPT') # reset to default behavior filename
+        await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(current_behavior_filename))[0]}`!")
         print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
         return
 
@@ -267,13 +266,13 @@ async def on_message(message):
                 await message.channel.send(f"File not found: {filename}")
                 return
         conversation = load_prompt(filename)
-        os.environ["DEFAULT_PROMPT"] = filename
         channel_messages[message.channel.id] = conversation
         convo_str = de_json(conversation)
+        current_behavior_filename = filename
         embed = discord.Embed(title=f"Behavior loaded: {filename}", description="", color=0x00ff00)
         await message.channel.send(embed=embed)
         await discord_chunker(message, convo_str)
-        print(f'{Fore.RED}Behavior Loaded:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{de_json(channel_messages[message.channel.id])}{Style.RESET_ALL}')
+        print(f'{Fore.RED}Behavior Loaded:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{convo_str}{Style.RESET_ALL}')
         return
 
     else:
