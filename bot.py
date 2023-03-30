@@ -49,13 +49,13 @@ def load_prompt(filename):
         lines = file.readlines()
     return json.loads(build_convo(lines))
 
-def save_convo(convo, filename):
-    """Write a conversation to a text file."""
-    with open(filename, "w") as file:
-        for line in convo:
-            role = line["role"]
-            content = line["content"]
-            file.write(f"{role}: {content}\n")
+def save_convo(messages, filename, channel_id):
+    """Saves a list of messages to a text file."""
+    convo_str = de_json(messages)
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(convo_str)
+        print(f'{Fore.RED}Behavior Saved:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{convo_str}{Style.RESET_ALL}')
+    return f"Behavior saved as `{os.path.splitext(os.path.basename(filename))[0]}`"
 
 def de_json(convo):
     """Convert a conversation from JSON to human-readable text."""
@@ -105,27 +105,34 @@ See https://github.com/openai/openai-python/blob/main/chatml.md for information 
     
 async def chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p):
     """Returns the response object and prints Token info for gpt-3.5-turbo"""
-    remaining_tokens = 4000 - num_tokens_from_message(messages)
-    if remaining_tokens < 500:
-        messages = messages[len(messages) // 2:]
-        print(f'{Style.DIM}Approaching token limit. Forgetting older messages...{Style.RESET_ALL}')
-        remaining_tokens = 4000 - num_tokens_from_message(messages)
-        print(f'{Style.DIM}{Fore.WHITE}Remaining tokens after purge:{remaining_tokens}{Style.RESET_ALL}')
+    max_tokens = 3500
+    num_tokens = num_tokens_from_message(messages)
+    remaining_tokens = max_tokens - num_tokens
+    while remaining_tokens < 500 and len(messages) > 1:
+        num_messages_removed = 1
+        oldest_tokens = num_tokens_from_message(messages[:1])
+        messages = messages[1:]
+        num_tokens -= oldest_tokens
+        remaining_tokens = max_tokens - num_tokens
+        print(f'{Style.DIM}Token limit approaching. Removing {num_messages_removed} message(s).{Style.RESET_ALL}')
+        print(f'{Style.DIM}{Fore.WHITE}Remaining tokens after removing {num_messages_removed} message(s):{remaining_tokens}{Style.RESET_ALL}')
     response = await asyncio.to_thread(
-    openai.ChatCompletion.create,
-    model= "gpt-3.5-turbo",
-    messages = messages,
-    max_tokens = remaining_tokens,
-    top_p = top_p,
-    temperature = temperature,
-    frequency_penalty = frequency_penalty,
-    presence_penalty = presence_penalty
-)
+        openai.ChatCompletion.create,
+        model="gpt-3.5-turbo",
+        messages = messages,
+        max_tokens = remaining_tokens,
+        top_p = top_p,
+        temperature = temperature,
+        frequency_penalty = frequency_penalty,
+        presence_penalty = presence_penalty
+    )
     completion_tokens = response['usage']['completion_tokens']
     prompt_tokens = response['usage']['prompt_tokens']
     total_tokens = response['usage']['total_tokens']
     print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
+    remaining_tokens -= completion_tokens
     print(f'Remaining tokens:{remaining_tokens}')
+    #print(f'Current Memory:{messages}')
     return response
 
 async def discord_chunker(message, content):
@@ -201,7 +208,7 @@ async def on_message(message):
             return      
         channel_messages[message.channel.id].clear()
         channel_messages[message.channel.id] = load_prompt(filename=os.getenv('DEFAULT_PROMPT'))
-        current_behavior_filename = os.getenv('DEFAULT_PROMPT') # reset to default behavior filename
+        current_behavior_filename = os.getenv('DEFAULT_PROMPT')
         await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(current_behavior_filename))[0]}`!")
         print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
         return
@@ -234,12 +241,7 @@ async def on_message(message):
         msg = await bot.wait_for("message", check=check)
         filename = "prompts/" + msg.content.strip() + ".txt"
         messages = channel_messages[message.channel.id]
-        convo_str = de_json(messages)
-        with open(filename, "w") as file:
-            file.write(convo_str)
-            print(f'{Fore.RED}Behavior Saved:\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{convo_str}{Style.RESET_ALL}')
-            await message.channel.send(f"Behavior saved as `{os.path.splitext(os.path.basename(filename))[0]}`")
-            return
+        await message.channel.send(save_convo(messages, filename, message.channel.id))
 
     elif message.content.lower().startswith("load behavior"):
         if not allowed_command(message.author.id):
@@ -280,12 +282,10 @@ async def on_message(message):
             user_channel_key = message.author.id
         else:
             user_channel_key = message.channel.id
-
         messages = channel_messages.get(user_channel_key)
         if messages is None:
             messages = load_prompt(filename=os.getenv("DEFAULT_PROMPT"))
             channel_messages[user_channel_key] = messages
-
         if command_mode_flag.get(message.channel.id):
             command_mode_flag[message.channel.id] = False
             return
@@ -296,8 +296,7 @@ async def on_message(message):
                 response = await chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p)
                 content = response['choices'][0]['message']['content']
                 messages.append({"role": "assistant", "content": content})
-                print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')
-                #print(f'Current Memory:{messages}')
+                print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')                
                 responses[message.id] = content
                 if message.id in responses:
                     response_content = responses[message.id]
