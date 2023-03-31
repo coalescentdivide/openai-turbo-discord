@@ -50,7 +50,6 @@ def load_prompt(filename):
     return json.loads(build_convo(lines))
 
 def save_convo(messages, filename, channel_id):
-    """Saves a list of messages to a text file."""
     convo_str = de_json(messages)
     with open(filename, "w", encoding="utf-8") as file:
         file.write(convo_str)
@@ -103,37 +102,44 @@ def num_tokens_from_message(messages, model="gpt-3.5-turbo-0301"):
         raise NotImplementedError(f"""num_tokens_from_messages() is not presently implemented for model {model}.
 See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
     
-async def chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p):
-    """Returns the response object and prints Token info for gpt-3.5-turbo"""
-    max_tokens = 3500
+async def get_chat_response(messages, max_tokens):
+    """Returns the response object from OpenAI's Chat API"""
+    response = await asyncio.to_thread(
+        openai.ChatCompletion.create,
+        model="gpt-3.5-turbo",
+        messages=messages,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        temperature=temperature,
+        frequency_penalty=frequency_penalty,
+        presence_penalty=presence_penalty
+    )
+    return response
+
+async def chat_response(messages):
+    """Returns the response, removing old messages as needed"""
+    max_tokens = int(os.getenv("MAX_TOKENS"))
     num_tokens = num_tokens_from_message(messages)
     remaining_tokens = max_tokens - num_tokens
+    num_messages_removed = 0
     while remaining_tokens < 500 and len(messages) > 1:
-        num_messages_removed = 1
         oldest_tokens = num_tokens_from_message(messages[:1])
         messages = messages[1:]
         num_tokens -= oldest_tokens
         remaining_tokens = max_tokens - num_tokens
-        print(f'{Style.DIM}Token limit approaching. Removing {num_messages_removed} message(s).{Style.RESET_ALL}')
-        print(f'{Style.DIM}{Fore.WHITE}Remaining tokens after removing {num_messages_removed} message(s):{remaining_tokens}{Style.RESET_ALL}')
-    response = await asyncio.to_thread(
-        openai.ChatCompletion.create,
-        model="gpt-3.5-turbo",
-        messages = messages,
-        max_tokens = remaining_tokens,
-        top_p = top_p,
-        temperature = temperature,
-        frequency_penalty = frequency_penalty,
-        presence_penalty = presence_penalty
-    )
-    completion_tokens = response['usage']['completion_tokens']
-    prompt_tokens = response['usage']['prompt_tokens']
-    total_tokens = response['usage']['total_tokens']
-    print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
-    remaining_tokens -= completion_tokens
-    print(f'Remaining tokens:{remaining_tokens}')
-    #print(f'Current Memory:{messages}')
-    return response
+        num_messages_removed += 1               
+    if remaining_tokens >= 500:
+        response = await get_chat_response(messages, remaining_tokens)
+        completion_tokens = response['usage']['completion_tokens']
+        prompt_tokens = response['usage']['prompt_tokens']
+        total_tokens = response['usage']['total_tokens']
+        print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
+        remaining_tokens -= completion_tokens
+        if num_messages_removed > 0:
+            print(f'{Style.DIM}{Fore.WHITE}Removed oldest {num_messages_removed} message(s).\nRemaining tokens:{remaining_tokens}{Style.RESET_ALL}')
+        print(f'{Style.DIM}{Fore.WHITE}Remaining tokens:{remaining_tokens}{Style.RESET_ALL}')
+        #print(f'Current Memory:{messages}')
+        return response
 
 async def discord_chunker(message, content):
     """Splits text into multiple messages if length is over discord character limit"""
@@ -267,9 +273,9 @@ async def on_message(message):
             if filename not in behavior_files:
                 await message.channel.send(f"File not found: {filename}")
                 return
-        conversation = load_prompt(filename)
-        channel_messages[message.channel.id] = conversation
-        convo_str = de_json(conversation)
+        behavior = load_prompt(filename)
+        channel_messages[message.channel.id] = behavior
+        convo_str = de_json(behavior)
         current_behavior_filename = filename
         embed = discord.Embed(title=f"Behavior loaded: {filename}", description="", color=0x00ff00)
         await message.channel.send(embed=embed)
@@ -293,7 +299,7 @@ async def on_message(message):
         async with message.channel.typing():
             try:
                 messages.append({"role": "user", "content": message_content})
-                response = await chat_response(messages, temperature, frequency_penalty, presence_penalty, top_p)
+                response = await chat_response(messages)
                 content = response['choices'][0]['message']['content']
                 messages.append({"role": "assistant", "content": content})
                 print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')                
@@ -305,7 +311,7 @@ async def on_message(message):
                     await asyncio.sleep(300)
                     if user_channel_key in channel_messages:
                         del channel_messages[user_channel_key]
-                        print(f'{Fore.RED}Forgetting side convo with {message.author}{Style.RESET_ALL}')  
+                        print(f'{Fore.RED}Forgetting side convo with {message.author}{Style.RESET_ALL}')
             except Exception as e:
                 print(type(e), e)
                 await message.channel.send("Sorry, there was an error processing your message.")
