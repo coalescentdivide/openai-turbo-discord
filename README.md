@@ -11,9 +11,7 @@ A discord bot to interact with the openai chat completions api (designed for gpt
 ###### This guide assumes you have python installed on your system (3.9 or 3.10 is recommended)
 ### 1. Clone the repository or download and extract the zip file.
 
-### 2. Copy the .env.example file and rename it to .env.
-
-### 3. Obtain your Discord Bot token
+### 2. Set Up the Discord Bot
 ###### 1. Create your bot at https://discord.com/developers/applications
 ###### 2. Go to the Bot tab and click "Add Bot" and give it a name.
 ###### 3. Click "Reset Token" to get your Discord Bot Token for the .env file.
@@ -21,10 +19,11 @@ A discord bot to interact with the openai chat completions api (designed for gpt
 ###### 5. Enable "Message Content Intent" under "Privileged Gateway Intents".
 ###### 6. Go to the OAuth2 tab and select URL generator. Under Scopes check `bot`, then in the permissions check `Send Messages` and `Embed Links`. Use the generated URL to invite the bot to your server. (Designed to run on a single server)
 
-### 4. Create or login to your OpenAI account and generate an API key at https://beta.openai.com/account/api-keys
+### 3. Create or login to your OpenAI account and generate an API key at https://beta.openai.com/account/api-keys
 
-### 5. Edit .env file and add your Discord bot token, OpenAI API key, and at least one channel for it to work in. 
+### 4. Copy the `.env.example` file and rename it to `.env`. Open the .env file like a text file and add your Discord bot token, OpenAI API key, and at least one channel for it to work in. 
+
 ###### You can find the IDs for Channels and Users by turning on Developer Mode in Discord (Settings > Appearance > Advanced) and right-clicking on the channel and selecting 'copy ID'.
 
-### 6. Open a terminal window in the folder containing the downloaded files, and type `run.bat`. (You may have to type `./run.bat` due to powershell permissions). To shut down press `Ctrl + c`.
+### 6. Open a terminal window in the folder containing the downloaded files, and type `run.bat`. (You may have to type `.\run.bat` if using powershell). To shut down press `Ctrl + c`.
 
