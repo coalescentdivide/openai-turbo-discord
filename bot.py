@@ -50,6 +50,7 @@ def load_prompt(filename):
     return json.loads(build_convo(lines))
 
 def save_convo(messages, filename, channel_id):
+    """Saves the current memory to a text file"""
     convo_str = de_json(messages)
     with open(filename, "w", encoding="utf-8") as file:
         file.write(convo_str)
