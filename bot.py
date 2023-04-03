@@ -69,17 +69,22 @@ def de_json(convo):
 def build_convo(lines):
     """Converts a conversation in text format to JSON format."""
     conversation = []
+    role = "user"
+    content = ""
     for line in lines:
         line = line.strip()
         if not line:
             continue
         parts = line.split(':', maxsplit=1)
         if len(parts) >= 2:
+            if content:
+                conversation.append({"role": role, "content": content})
+                content = ""
             role = parts[0]
             content = parts[1].strip()
         else:
-            role = "user"
-            content = line
+            content += "\n" + line if content else line
+    if content:
         conversation.append({"role": role, "content": content})
     return json.dumps(conversation)
 
