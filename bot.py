@@ -24,6 +24,7 @@ top_p = float(os.getenv("TOP_P"))
 channel_messages = {}
 responses = {}
 command_mode_flag = {}
+message_queue_locks = {}
 
 def allowed_command(user_id):
     if str(user_id) in admin_id:
@@ -308,25 +309,29 @@ async def on_message(message):
         if command_mode_flag.get(message.channel.id):
             command_mode_flag[message.channel.id] = False
             return
+        
+        if user_channel_key not in message_queue_locks:
+            message_queue_locks[user_channel_key] = asyncio.Lock()
 
-        async with message.channel.typing():
-            try:
-                messages.append({"role": "user", "content": message_content})
-                response = await chat_response(messages)
-                content = response['choices'][0]['message']['content']
-                messages.append({"role": "assistant", "content": content})
-                print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')                
-                responses[message.id] = content
-                if message.id in responses:
-                    response_content = responses[message.id]
-                    await discord_chunker(message, response_content)
-                if bot_mentioned_in_unallowed_channel:
-                    await asyncio.sleep(300)
-                    if user_channel_key in channel_messages:
-                        del channel_messages[user_channel_key]
-                        print(f'{Fore.RED}Forgetting side convo with {message.author}{Style.RESET_ALL}')
-            except Exception as e:
-                print(type(e), e)
-                await message.channel.send("Sorry, there was an error processing your message.")
+        async with message_queue_locks[user_channel_key]:
+            async with message.channel.typing():
+                try:
+                    messages.append({"role": "user", "content": message_content})
+                    response = await chat_response(messages)
+                    content = response['choices'][0]['message']['content']
+                    messages.append({"role": "assistant", "content": content})
+                    print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')                
+                    responses[message.id] = content
+                    if message.id in responses:
+                        response_content = responses[message.id]
+                        await discord_chunker(message, response_content)
+                    if bot_mentioned_in_unallowed_channel:
+                        await asyncio.sleep(300)
+                        if user_channel_key in channel_messages:
+                            del channel_messages[user_channel_key]
+                            print(f'{Fore.RED}Forgetting side convo with {message.author}{Style.RESET_ALL}')
+                except Exception as e:
+                    print(type(e), e)
+                    await message.channel.send("Sorry, there was an error processing your message.")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
