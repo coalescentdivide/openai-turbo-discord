@@ -201,7 +201,7 @@ async def on_message(message):
         return msg.author == message.author and msg.channel == message.channel
 
     if message.content.lower() == "help":
-        embed = discord.Embed(title=f"Send a message in this channel to get a response from {message.guild.me.nick}\n\nAlternatively, you can mention {message.guild.me.nick} outside of this channel for a response (currently, only with the default behavior)\n\nReplies to other users are ignored\n\nUse the following commands to modify the behavior", color=0x00ff00)
+        embed = discord.Embed(title=f"Send a message in this channel to get a response from {message.guild.me.nick}\n\nReplies to other users or messages that start with ! are ignored" color=0x00ff00)
         embed.add_field(name="wipe memory", value=f"Wipes the short-term memory and reloads the current behavior", inline=False)
         embed.add_field(name="new behavior", value=f"Allows the user to set a new behavior to the current memory", inline=False)
         embed.add_field(name="save behavior", value=f"Saves the current memory as a behavior template", inline=False)
