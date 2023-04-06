@@ -128,30 +128,25 @@ async def chat_response(messages):
     max_tokens = int(os.getenv("MAX_TOKENS"))
     num_tokens = num_tokens_from_message(messages)
     remaining_tokens = max_tokens - num_tokens
-    num_messages_removed = 0    
     current_behavior = load_prompt(current_behavior_filename)
     if isinstance(current_behavior, list):
         behavior_len = len(current_behavior)
     else:
         behavior_len = 1
     start_index = behavior_len
-    while remaining_tokens < 500 and len(messages) > behavior_len:
+    while remaining_tokens / max_tokens < 0.125 and len(messages) > behavior_len:
         oldest_tokens = num_tokens_from_message(messages[start_index:start_index+1])
         messages = messages[:start_index] + messages[start_index+1:]
         num_tokens -= oldest_tokens
         remaining_tokens = max_tokens - num_tokens
-        num_messages_removed += 1
-    if remaining_tokens >= 500:
+    if remaining_tokens / max_tokens >= 0.125:
         response = await get_chat_response(messages, remaining_tokens)
         completion_tokens = response['usage']['completion_tokens']
         prompt_tokens = response['usage']['prompt_tokens']
         total_tokens = response['usage']['total_tokens']
         print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
         remaining_tokens -= completion_tokens
-        if num_messages_removed > 0:
-            print(f'{Style.DIM}{Fore.WHITE}Removed oldest {num_messages_removed} message(s).\nRemaining tokens:{remaining_tokens}{Style.RESET_ALL}')
-        else:
-            print(f'{Style.DIM}{Fore.WHITE}Remaining tokens:{remaining_tokens}{Style.RESET_ALL}')
+        print(f'{Style.DIM}{Fore.WHITE}Remaining tokens:{remaining_tokens}{Style.RESET_ALL}')
     #print(f'Current Memory:{messages}')
     return response
 
@@ -257,7 +252,7 @@ async def on_message(message):
             await message.channel.send("You are not allowed to use this command.")
             return 
         command_mode_flag[message.channel.id] = True
-        await message.channel.send("Name your behavior:")      
+        await message.channel.send("Name your behavior:")
         msg = await bot.wait_for("message", check=check)
         filename = "prompts/" + msg.content.strip() + ".txt"
         messages = channel_messages[message.channel.id]
