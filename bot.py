@@ -183,6 +183,12 @@ async def discord_chunker(message, content):
 async def on_ready():
     print(f'{Fore.GREEN}Logged in as {bot.user}{Style.RESET_ALL}')
 
+async def forget_mentions(user_channel_key):
+    await asyncio.sleep(300)
+    if user_channel_key in channel_messages:
+        del channel_messages[user_channel_key]
+        print(f'{Fore.RED}Forgetting side convo with user {user_channel_key}{Style.RESET_ALL}')
+
 @bot.event
 async def on_message(message):
     global current_behavior_filename
@@ -201,12 +207,13 @@ async def on_message(message):
         return msg.author == message.author and msg.channel == message.channel
 
     if message.content.lower() == "help":
-        embed = discord.Embed(title=f"Send a message in this channel to get a response from {message.guild.me.nick}\n\nReplies to other users or messages that start with ! are ignored", color=0x00ff00)
+        embed = discord.Embed(title=f"Send a message in this channel to get a response from {message.guild.me.nick}\nReplies to other users or messages that start with ! are ignored", color=0x00ff00)
         embed.add_field(name="wipe memory", value=f"Wipes the short-term memory and reloads the current behavior", inline=False)
         embed.add_field(name="new behavior", value=f"Allows the user to set a new behavior to the current memory", inline=False)
         embed.add_field(name="save behavior", value=f"Saves the current memory as a behavior template", inline=False)
         embed.add_field(name="load behavior [behavior name]", value=f"Wipes memory and loads the specified behavior template. If no filename is provided, a list of available behavior templates will be shown. Then respond with the name of the template you wish to load.", inline=False)
-        embed.add_field(name="reset", value=f"Wipes memory and loads the default behavior")
+        embed.add_field(name="reset", value=f"Wipes memory and loads the default behavior", inline=False)
+        embed.add_field(name="@mention", value=f"You can also mention {message.guild.me.nick} outside of this channel. Keep mentioning it to continue that conversation, otherwise a mention convo is erased automatically after 5 minutes", inline=False)
         await message.channel.send(embed=embed)
         return
 
@@ -321,10 +328,7 @@ async def on_message(message):
                         response_content = responses[message.id]
                         await discord_chunker(message, response_content)
                     if bot_mentioned_in_unallowed_channel:
-                        await asyncio.sleep(300)
-                        if user_channel_key in channel_messages:
-                            del channel_messages[user_channel_key]
-                            print(f'{Fore.RED}Forgetting side convo with {message.author}{Style.RESET_ALL}')
+                        asyncio.create_task(forget_mentions(user_channel_key))
                 except Exception as e:
                     print(type(e), e)
                     await message.channel.send("Sorry, there was an error processing your message.")
