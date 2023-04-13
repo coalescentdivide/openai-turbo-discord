@@ -134,12 +134,12 @@ async def chat_response(messages):
     else:
         behavior_len = 1
     start_index = behavior_len
-    while remaining_tokens / max_tokens < 0.125 and len(messages) > behavior_len:
+    while remaining_tokens / max_tokens < 0.2 and len(messages) > behavior_len:
         oldest_tokens = num_tokens_from_message(messages[start_index:start_index+1])
         messages = messages[:start_index] + messages[start_index+1:]
         num_tokens -= oldest_tokens
         remaining_tokens = max_tokens - num_tokens
-    if remaining_tokens / max_tokens >= 0.125:
+    if remaining_tokens / max_tokens >= 0.2:
         response = await get_chat_response(messages, remaining_tokens)
         completion_tokens = response['usage']['completion_tokens']
         prompt_tokens = response['usage']['prompt_tokens']
