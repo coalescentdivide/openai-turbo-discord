@@ -7,6 +7,8 @@ import json
 import openai
 import os
 import tiktoken
+import replicate
+import base64
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_KEY")
@@ -123,7 +125,7 @@ async def get_chat_response(messages, max_tokens):
     )
     return response
 
-async def chat_response(messages):
+async def chat_response(messages, attachment=None, image_prompt=None):
     """Wrapper function for memory management"""
     max_tokens = int(os.getenv("MAX_TOKENS"))
     num_tokens = num_tokens_from_message(messages)
@@ -139,16 +141,36 @@ async def chat_response(messages):
         messages = messages[:start_index] + messages[start_index+1:]
         num_tokens -= oldest_tokens
         remaining_tokens = max_tokens - num_tokens
-    if remaining_tokens / max_tokens >= 0.2:
-        response = await get_chat_response(messages, remaining_tokens)
-        completion_tokens = response['usage']['completion_tokens']
-        prompt_tokens = response['usage']['prompt_tokens']
-        total_tokens = response['usage']['total_tokens']
-        print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
-        remaining_tokens -= completion_tokens
-        print(f'{Style.DIM}{Fore.WHITE}Remaining tokens:{remaining_tokens}{Style.RESET_ALL}')
-    #print(f'Current Memory:{messages}')
-    return response
+    if attachment is not None:
+        if image_prompt is not None:
+            image_response = await image_question(image_prompt, attachment)
+        else:
+            image_response = await image_caption(attachment)
+        image_prompt = f"'{image_response}' is an image caption. Please format the caption into a sentence, such as, \"This is a picture of a {image_response}\". Provide a brief bit of detail about it if possible."
+        response = await asyncio.to_thread(
+            openai.ChatCompletion.create,
+            model="gpt-3.5-turbo",
+            messages=[*messages, {"role": "user", "content": image_prompt}],
+            max_tokens=remaining_tokens,
+            top_p=top_p,
+            temperature=0.5,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty
+        )
+        content = response['choices'][0]['message']['content']
+        messages.append({"role": "assistant", "content": content})
+        return response
+    else:
+        if remaining_tokens / max_tokens >= 0.2:
+            response = await get_chat_response(messages, remaining_tokens)
+            completion_tokens = response['usage']['completion_tokens']
+            prompt_tokens = response['usage']['prompt_tokens']
+            total_tokens = response['usage']['total_tokens']
+            print(f'{Style.BRIGHT}{Fore.CYAN}Completion tokens:{completion_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.BLUE}Prompt tokens:{prompt_tokens}{Style.RESET_ALL}\n{Style.BRIGHT}{Fore.GREEN}Total tokens:{total_tokens}{Style.RESET_ALL}')
+            remaining_tokens -= completion_tokens
+            print(f'{Style.DIM}{Fore.WHITE}Remaining tokens:{remaining_tokens}{Style.RESET_ALL}')
+        print(f'Current Memory:{messages}')
+        return response
 
 async def discord_chunker(message, content):
     """Splits text into multiple messages if length is over discord character limit"""
@@ -178,6 +200,30 @@ async def discord_chunker(message, content):
         chunks.append(content)
         for chunk in chunks:
             await message.channel.send(chunk)
+
+async def image_question(prompt, attachment):
+    image_data = await attachment.read()
+    image_base64 = base64.b64encode(image_data).decode("utf-8")
+    image_data_url = f"data:image/jpeg;base64,{image_base64}"
+
+    output = await asyncio.to_thread(
+        replicate.run,
+        "andreasjansson/blip-2:4b32258c42e9efd4288bb9910bc532a69727f9acd26aa08e175713a0a857a608",
+        input={"image": image_data_url, "question": prompt},
+    )
+    return output
+
+async def image_caption(attachment):
+    image_data = await attachment.read()
+    image_base64 = base64.b64encode(image_data).decode("utf-8")
+    image_data_url = f"data:image/jpeg;base64,{image_base64}"
+
+    output = await asyncio.to_thread(
+        replicate.run,
+        "andreasjansson/blip-2:4b32258c42e9efd4288bb9910bc532a69727f9acd26aa08e175713a0a857a608",
+        input={"image": image_data_url, "caption": True},
+    )
+    return output
 
 @bot.event
 async def on_ready():
@@ -228,12 +274,15 @@ async def on_message(message):
         if not allowed_command(message.author.id):
             await message.channel.send("You are not allowed to use this command.")
             return      
-        channel_messages[message.channel.id].clear()
-        channel_messages[message.channel.id] = load_prompt(filename=os.getenv('DEFAULT_PROMPT'))
-        current_behavior_filename = os.getenv('DEFAULT_PROMPT')
-        await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(current_behavior_filename))[0]}`!")
-        print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
-        return
+        if message.channel.id in channel_messages:
+            channel_messages[message.channel.id].clear()
+        else:
+            channel_messages[message.channel.id] = []
+            channel_messages[message.channel.id] = load_prompt(filename=os.getenv('DEFAULT_PROMPT'))
+            current_behavior_filename = os.getenv('DEFAULT_PROMPT')
+            await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(current_behavior_filename))[0]}`!")
+            print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
+            return
 
     elif message.content.lower() == "new behavior":
         if not allowed_command(message.author.id):
@@ -310,19 +359,25 @@ async def on_message(message):
             channel_messages[user_channel_key] = messages
         if command_mode_flag.get(message.channel.id):
             command_mode_flag[message.channel.id] = False
-            return
-        
+            return        
         if user_channel_key not in message_queue_locks:
             message_queue_locks[user_channel_key] = asyncio.Lock()
+
+        attachment = message.attachments[0] if message.attachments else None
+        image_prompt = message_content.strip() if attachment and message_content.strip() else None
 
         async with message_queue_locks[user_channel_key]:
             async with message.channel.typing():
                 try:
                     messages.append({"role": "user", "content": message_content})
-                    response = await chat_response(messages)
-                    content = response['choices'][0]['message']['content']
+                    if attachment:
+                        response = await chat_response(messages, attachment=attachment, image_prompt=image_prompt)
+                        content = response['choices'][0]['message']['content']
+                    else:
+                        response = await chat_response(messages)
+                        content = response['choices'][0]['message']['content']
                     messages.append({"role": "assistant", "content": content})
-                    print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')                
+                    print(f'Channel: {message.channel.name}\n{Style.DIM}{Fore.RED}{Back.WHITE}{message.author}: {Fore.BLACK}{message_content}{Style.RESET_ALL}\n{Style.DIM}{Fore.GREEN}{Back.WHITE}{bot.user}: {Fore.BLACK}{content}{Style.RESET_ALL}')
                     responses[message.id] = content
                     if message.id in responses:
                         response_content = responses[message.id]
