@@ -125,8 +125,39 @@ async def get_chat_response(messages, max_tokens):
     )
     return response
 
-async def chat_response(messages, attachment=None, image_prompt=None):
-    """Wrapper function for memory management"""
+async def handle_image(attachment, image_prompt=None):
+    system_prompt = f"You are an AI that can generate conversational responses based on the output from an image to text model that captions images and performs visual question and answering. Your task is to transform the output of the model into a natural and complete sentence. You must not mention to the user that you are doing this."
+    if image_prompt is not None:
+        image_response = await image_question(image_prompt, attachment)
+        prompt = f"The user asked a question about an image, and the image to text model provided this answer: '{image_response}'. Transform this answer into a well-formed, conversational sentence."
+    else:
+        image_response = await image_caption(attachment)
+        prompt = f"The image to text model provided this caption for an image: '{image_response}'. Transform this caption into a well-formed, conversational sentence."
+    max_retries = 3
+    backoff_factor = 2
+    for retry_attempt in range(max_retries):
+        try:
+            response = await asyncio.to_thread(
+                openai.ChatCompletion.create,
+                model="gpt-3.5-turbo",
+                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+                max_tokens=256,
+                top_p=top_p,
+                temperature=0.5,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty
+            )
+            content = response['choices'][0]['message']['content']
+            return content
+        except openai.error.RateLimitError:
+            if retry_attempt == max_retries - 1:
+                raise
+            sleep_time = (backoff_factor ** retry_attempt) + 1
+            print(f"Rate limited. Retrying in {sleep_time} seconds...")
+            await asyncio.sleep(sleep_time)
+
+async def chat_response(messages):
+    """Wrapper function for chat response"""
     max_tokens = int(os.getenv("MAX_TOKENS"))
     num_tokens = num_tokens_from_message(messages)
     remaining_tokens = max_tokens - num_tokens
@@ -141,25 +172,6 @@ async def chat_response(messages, attachment=None, image_prompt=None):
         messages = messages[:start_index] + messages[start_index+1:]
         num_tokens -= oldest_tokens
         remaining_tokens = max_tokens - num_tokens
-    if attachment is not None:
-        if image_prompt is not None:
-            image_response = await image_question(image_prompt, attachment)
-        else:
-            image_response = await image_caption(attachment)
-        image_prompt = f"'{image_response}' is an image caption. Please format the caption into a sentence, such as, \"This is a picture of a {image_response}\". Provide a brief bit of detail about it if possible."
-        response = await asyncio.to_thread(
-            openai.ChatCompletion.create,
-            model="gpt-3.5-turbo",
-            messages=[*messages, {"role": "user", "content": image_prompt}],
-            max_tokens=remaining_tokens,
-            top_p=top_p,
-            temperature=0.5,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty
-        )
-        content = response['choices'][0]['message']['content']
-        messages.append({"role": "assistant", "content": content})
-        return response
     else:
         if remaining_tokens / max_tokens >= 0.2:
             response = await get_chat_response(messages, remaining_tokens)
@@ -170,7 +182,7 @@ async def chat_response(messages, attachment=None, image_prompt=None):
             remaining_tokens -= completion_tokens
             print(f'{Style.DIM}{Fore.WHITE}Remaining tokens:{remaining_tokens}{Style.RESET_ALL}')
         print(f'Current Memory:{messages}')
-        return response
+    return response
 
 async def discord_chunker(message, content):
     """Splits text into multiple messages if length is over discord character limit"""
@@ -205,24 +217,24 @@ async def image_question(prompt, attachment):
     image_data = await attachment.read()
     image_base64 = base64.b64encode(image_data).decode("utf-8")
     image_data_url = f"data:image/jpeg;base64,{image_base64}"
-
     output = await asyncio.to_thread(
         replicate.run,
         "andreasjansson/blip-2:4b32258c42e9efd4288bb9910bc532a69727f9acd26aa08e175713a0a857a608",
         input={"image": image_data_url, "question": prompt},
     )
+    print(f"{Style.BRIGHT}{Fore.YELLOW}Image query: {prompt}\nBLIP-2 answer: {output}{Style.RESET_ALL}")
     return output
 
 async def image_caption(attachment):
     image_data = await attachment.read()
     image_base64 = base64.b64encode(image_data).decode("utf-8")
     image_data_url = f"data:image/jpeg;base64,{image_base64}"
-
     output = await asyncio.to_thread(
         replicate.run,
         "andreasjansson/blip-2:4b32258c42e9efd4288bb9910bc532a69727f9acd26aa08e175713a0a857a608",
         input={"image": image_data_url, "caption": True},
     )
+    print(f"{Style.BRIGHT}{Fore.YELLOW}BLIP-2 Caption: {output}")
     return output
 
 @bot.event
@@ -243,6 +255,9 @@ async def on_message(message):
     if message.author.bot or message.author.id in ignored_ids:
         return
     bot_mentioned_in_unallowed_channel = str(message.channel.id) not in allowed_channels and bot.user in message.mentions
+    other_users_mentioned = any(user.id != bot.user.id for user in message.mentions)
+    if not bot_mentioned_in_unallowed_channel and other_users_mentioned:
+        return
     if not bot_mentioned_in_unallowed_channel and str(message.channel.id) not in allowed_channels:
         return
     message_content = message.content.replace(f'{bot.user.mention} ', '') if message.content.startswith(f'{bot.user.mention} ') else message.content
@@ -278,11 +293,11 @@ async def on_message(message):
             channel_messages[message.channel.id].clear()
         else:
             channel_messages[message.channel.id] = []
-            channel_messages[message.channel.id] = load_prompt(filename=os.getenv('DEFAULT_PROMPT'))
-            current_behavior_filename = os.getenv('DEFAULT_PROMPT')
-            await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(current_behavior_filename))[0]}`!")
-            print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
-            return
+        channel_messages[message.channel.id] = load_prompt(filename=os.getenv('DEFAULT_PROMPT'))
+        current_behavior_filename = os.getenv('DEFAULT_PROMPT')
+        await message.channel.send(f"Reset to `{os.path.splitext(os.path.basename(current_behavior_filename))[0]}`!")
+        print(f'{Fore.RED}Reset!{Style.RESET_ALL}')
+        return
 
     elif message.content.lower() == "new behavior":
         if not allowed_command(message.author.id):
@@ -366,13 +381,14 @@ async def on_message(message):
         attachment = message.attachments[0] if message.attachments else None
         image_prompt = message_content.strip() if attachment and message_content.strip() else None
 
-        async with message_queue_locks[user_channel_key]:
-            async with message.channel.typing():
+    async with message_queue_locks[user_channel_key]:
+        async with message.channel.typing():
+            messages.append({"role": "user", "content": message_content})
+            max_retries = 3
+            for i in range(max_retries):
                 try:
-                    messages.append({"role": "user", "content": message_content})
                     if attachment:
-                        response = await chat_response(messages, attachment=attachment, image_prompt=image_prompt)
-                        content = response['choices'][0]['message']['content']
+                        content = await handle_image(attachment, image_prompt)
                     else:
                         response = await chat_response(messages)
                         content = response['choices'][0]['message']['content']
@@ -384,6 +400,11 @@ async def on_message(message):
                         await discord_chunker(message, response_content)
                     if bot_mentioned_in_unallowed_channel:
                         asyncio.create_task(forget_mentions(user_channel_key))
+                    break
+                except openai.error.APIConnectionError as e:
+                    print(f'Retry {i+1}:', type(e), e)
+                    if i == max_retries - 1:
+                        await message.channel.send("API Connection Error. Please try again later.")
                 except Exception as e:
                     print(type(e), e)
                     await message.channel.send("Sorry, there was an error processing your message.")
