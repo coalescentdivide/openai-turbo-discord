@@ -126,13 +126,13 @@ async def get_chat_response(messages, max_tokens):
     return response
 
 async def handle_image(attachment, image_prompt=None):
-    system_prompt = f"You are an AI that can generate conversational responses based on the output from an image to text model that captions images and performs visual question and answering. Your task is to transform the output of the model into a natural and complete sentence. You must not mention to the user that you are doing this."
+    system_prompt = f"You are an AI that takes the output from a text to image model called BLIP-2 and makes it into a grammatically correct sentence."
     if image_prompt is not None:
         image_response = await image_question(image_prompt, attachment)
-        prompt = f"The user asked a question about an image, and the image to text model provided this answer: '{image_response}'. Transform this answer into a well-formed, conversational sentence."
+        prompt = f"Image Question: {image_prompt}\nBLIP-2 answer: {image_response}\nResponse:"
     else:
         image_response = await image_caption(attachment)
-        prompt = f"The image to text model provided this caption for an image: '{image_response}'. Transform this caption into a well-formed, conversational sentence."
+        prompt = f"Image Caption: {image_response}\n'Response:"
     max_retries = 3
     backoff_factor = 2
     for retry_attempt in range(max_retries):
