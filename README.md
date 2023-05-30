@@ -1,8 +1,9 @@
 # openai-turbo-discord
-A discord bot to interact with the openai chat completions api (designed for gpt-3.5-turbo - will work with gpt4 but will be very expensive!)
+A discord bot to interact with openai's chat api. This version adds multimodality support via BLIP2 image processing for visual q/a. Requires replicate api key
 
 * Retains trailing memory of the conversation with a dynamic self adjusting token limit.
 * Can be in multiple channels with their own memories and behaviors.
+* Can understand image content and answer questions pertaining to an image.
 * Can speak to the bot outside an allowed channel with a mention. When done this way, gets a unique memory tied to the user that mentioned. Forgets a mention convo after 5 minutes.
 * Type `help` to get a list of available commands, including the ability to write, save, and load instructions directly within Discord!
 * The behavior commands can be set to usable by everyone, or by authorized users only.
@@ -19,9 +20,11 @@ A discord bot to interact with the openai chat completions api (designed for gpt
 ###### 5. Enable "Message Content Intent" under "Privileged Gateway Intents".
 ###### 6. Go to the OAuth2 tab and select URL generator. Under Scopes check `bot`, then in the permissions check `Send Messages` and `Embed Links`. Use the generated URL to invite the bot to your server. (Designed to run on a single server)
 
-### 3. Create or login to your OpenAI account and generate an API key at https://beta.openai.com/account/api-keys
+### 3. Create or login to your OpenAI account and generate an API key at https://platform.openai.com/account/api-keys
 
-### 4. Copy the `.env.example` file and rename it to `.env`. Open the .env file like a text file and add your Discord bot token, OpenAI API key, and at least one channel for it to work in. 
+### 4. Create or login to your Replicate account and generate an API key at https://replicate.com/account/api-tokens
+
+### 5. Copy the `.env.example` file and rename it to `.env`. Open the .env file like a text file and add your Discord bot token, OpenAI API key, Replicate API key and at least one channel ID for it to work in. 
 
 ###### You can find the IDs for Channels and Users by turning on Developer Mode in Discord (Settings > Appearance > Advanced) and right-clicking on the channel and selecting 'copy ID'.
 
