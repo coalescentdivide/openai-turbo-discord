@@ -25,5 +25,5 @@ A discord bot to interact with the openai chat completions api (designed for gpt
 
 ###### You can find the IDs for Channels and Users by turning on Developer Mode in Discord (Settings > Appearance > Advanced) and right-clicking on the channel and selecting 'copy ID'.
 
-### 6. Open a terminal window in the folder containing the downloaded files, and type `run.bat`. (You may have to type `.\run.bat` if using powershell). To shut down press `Ctrl + c`.
+### 5. Open a terminal window in the folder containing the downloaded files, and type `run.bat`. (You may have to type `.\run.bat` if using powershell). To shut down press `Ctrl + c`.
 
